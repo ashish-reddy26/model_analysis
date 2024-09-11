@@ -9,10 +9,6 @@ from mot_utilities import window_analysis
 from deep_sort_realtime.deepsort_tracker import DeepSort
 from sort import Sort
 
-# -- customizing trackers - BoT-SORT, ByteTrack, SORT, DeepSORT
-
-# -- customized ByteTrack
-
 class ByteTrack_CropCounter:
     def __init__(self):
         # Initialize constants
@@ -49,10 +45,11 @@ class ByteTrack_CropCounter:
             vertical_fov.append(fov)
         return vertical_fov
 
-    def detect_results(self, set, model, video_source):
-        weight = f"C:/Users/ashis/Desktop/THESIS/DT_flow/resources/weights/set{set}/{model}.pt"
+    def detect_results(self, model, video_type):
+        weight = f"C:/Users/ashis/Desktop/THESIS/DT_flow/det_models/pine_project/data/files/weights/best_{model}.pt"
+        video_source = f'C:/Users/ashis/Desktop/THESIS/DT_flow/det_models/pine_project/data/videos/vid{video_type+1}.mp4'
         model = YOLO(weight)
-        results = model.predict(source=video_source, conf=.4, verbose=False, save=False)
+        results = model.predict(source=video_source, conf=.3, verbose=False, save=False)
         return results
 
     def ret_gt_cropcount(self, df, y1, y2):
@@ -90,88 +87,80 @@ class ByteTrack_CropCounter:
                 accuracies.append(accuracy)
             results[f'accuracy{row_idx}'] = accuracies
         return results
-
-    def rows_setA(self, wc_gt):
-        row1 = wc_gt[(wc_gt['CenterX'] >= 350) & (wc_gt['CenterX'] <= 725)]
-        row2 = wc_gt[(wc_gt['CenterX'] >= 705) & (wc_gt['CenterX'] <= 1100)]
-        row3 = wc_gt[(wc_gt['CenterX'] >= 1100) & (wc_gt['CenterX'] <= 1600)]
-        row4 = wc_gt[(wc_gt['CenterX'] >= 1600) & (wc_gt['CenterX'] <= 2150)]
-        row5 = wc_gt[(wc_gt['CenterX'] >= 2150) & (wc_gt['CenterX'] <= 2600)]
-        row6 = wc_gt[(wc_gt['CenterX'] >= 2700) & (wc_gt['CenterX'] <= 3050)]
-        row7 = wc_gt[
-            ((wc_gt['CenterX'] >= 3050) & (wc_gt['CenterX'] <= 3390) & (wc_gt['CenterY'] <= 2160) & (wc_gt['CenterY'] > 1500)) |
-            ((wc_gt['CenterX'] >= 3050) & (wc_gt['CenterX'] <= 3500) & (wc_gt['CenterY'] <= 1500) & (wc_gt['CenterY'] > 0))
-        ]
-        row8 = wc_gt[
-            ((wc_gt['CenterX'] >= 3350) & (wc_gt['CenterX'] <= 3840) & (wc_gt['CenterY'] <= 2160) & (wc_gt['CenterY'] > 1500)) |
-            ((wc_gt['CenterX'] >= 3490) & (wc_gt['CenterX'] <= 3840) & (wc_gt['CenterY'] <= 1500) & (wc_gt['CenterY'] > 0))
-        ]
-
-        return row1, row2, row3, row4, row5, row6, row7, row8
-
-    def rows_setB(self, wc_gt):
-        row1 = wc_gt[(wc_gt['CenterX'] >= 350) & (wc_gt['CenterX'] <= 725)]
-        row2 = wc_gt[(wc_gt['CenterX'] >= 725) & (wc_gt['CenterX'] <= 1100)]
-        row3 = wc_gt[(wc_gt['CenterX'] >= 1100) & (wc_gt['CenterX'] <= 1600)]
-        row4 = wc_gt[(wc_gt['CenterX'] >= 1600) & (wc_gt['CenterX'] <= 2150)]
-        row5 = wc_gt[(wc_gt['CenterX'] >= 2150) & (wc_gt['CenterX'] <= 2600)]
-        row6 = wc_gt[(wc_gt['CenterX'] >= 2700) & (wc_gt['CenterX'] <= 3050)]
-        row7 = wc_gt[
-            ((wc_gt['CenterX'] >= 3050) & (wc_gt['CenterX'] <= 3390) & (wc_gt['CenterY'] <= 2160) & (wc_gt['CenterY'] > 1500)) |
-            ((wc_gt['CenterX'] >= 3050) & (wc_gt['CenterX'] <= 3500) & (wc_gt['CenterY'] <= 1500) & (wc_gt['CenterY'] > 0))
-        ]
-        row8 = wc_gt[
-            ((wc_gt['CenterX'] >= 3370) & (wc_gt['CenterX'] <= 3840) & (wc_gt['CenterY'] <= 2160) & (wc_gt['CenterY'] > 1500)) |
-            ((wc_gt['CenterX'] >= 3490) & (wc_gt['CenterX'] <= 3840) & (wc_gt['CenterY'] <= 1500) & (wc_gt['CenterY'] > 0))
-        ]
-
-        return row1, row2, row3, row4, row5, row6, row7, row8
-
-    def gen_gt_results(self, model, type):
-        gt_counts_results = {}
-        df = pd.read_csv(f'C:/Users/ashis/Desktop/THESIS/DT_flow/resources/dataframes{type}/{model}_gt.csv')
+    
+    def return_rowlist(self, df, type):
+        # Dynamically get the function based on type
+        func_key = getattr(self, f'video{type}_division')
+        # Call the function with df as argument
+        return func_key(df)
+    
+    def gen_gt_results(self, version, variant, videotype):
+        '''
+        version: v8, v9, v10
+        variant: v8n, v9s, v10b
+        videotype: 1, 2, 3, 4
+        '''
         
-        if type == 'A':
-            rows = self.rows_setA(df)
-        else:
-            rows = self.rows_setB(df)
-            
+        gt_counts_results = {}
+        df = pd.read_csv(f'C:/Users/ashis/Desktop/THESIS/DT_flow/det_models/pine_project/data/files/dataframes/{version}/{variant}/video{videotype}_gt.csv')
+        
+        rows = self.return_rowlist(df, videotype)
         gt_counts_results = self.process_gt_counts(rows, self.y1, self.y2)
+        
         return gt_counts_results
 
-    def get_avg_accuracy(self, accuracy_results1, accuracy_results2):
-        average_results = {}
-        for key in accuracy_results1:
-            list_a = accuracy_results1[key]
-            list_b = accuracy_results2[key]
-            average_list = [(a + b) / 2 for a, b in zip(list_a, list_b)]
-            average_results[key] = average_list
+    def get_avg_accuracy(self, *accuracy_dicts):
+        # Collect all keys from all dictionaries
+        keys = set(k for d in accuracy_dicts for k in d.keys())
+        
+        # Initialize dictionary to store average results
+        average_results = {key: [] for key in keys}
+        
+        # Iterate over each key to calculate average
+        for key in keys:
+            # Collect all list values corresponding to the current key from all dictionaries
+            all_lists = [accuracy_dict.get(key, []) for accuracy_dict in accuracy_dicts if key in accuracy_dict]
+            
+            # Calculate the average of corresponding values from each list
+            if all_lists:
+                average_list = [sum(values) / len(values) for values in zip(*all_lists)]
+                average_results[key] = average_list
+        
         return average_results
 
-    def ret_frame_dets(self, tensor, i):
+
+    def ret_frame_dets(self, tensor, i, row_number, type):
+        
         xyxy = tensor[i].boxes.xyxy
         conf = tensor[i].boxes.conf
+        cxywh = tensor[i].boxes.xywh
         df1 = pd.DataFrame(xyxy)
         df2 = pd.DataFrame(conf)
-        df_appended = pd.concat([df1, df2], axis=1)
+        df3 = pd.DataFrame(cxywh, columns=['CenterX', 'CenterY', 'w', 'h'])
+        df_appended = pd.concat([df1, df2, df3], axis=1)
         final_df = df_appended[df_appended.iloc[:, 1] >= 660]
-        return final_df
+        
+        rows = self.return_rowlist(final_df, type)
+        temp_df = rows[row_number]  # -- rows - ranging from 0-7 (1-8)
+        temp_df.drop(['CenterX', 'CenterY', 'w', 'h'], axis=1, inplace=True)
+        
+        return temp_df
 
-    def ret_trimmed_df(self, df_appended, xmin, xmax, y1, y2):
-        trim_df = df_appended[((((df_appended.iloc[:, 0] + df_appended.iloc[:, 2]) / 2 >= xmin) &
-                               ((df_appended.iloc[:, 0] + df_appended.iloc[:, 2]) / 2 <= xmax)) &
-                              (((df_appended.iloc[:, 1] + df_appended.iloc[:, 3]) / 2 >= y1) &
-                               ((df_appended.iloc[:, 1] + df_appended.iloc[:, 3]) / 2 <= y2)))]
+    def ret_trimmed_df(self, temp_df, y1, y2):
+
+        trim_df = temp_df[((((temp_df.iloc[:, 1] + temp_df.iloc[:, 3]) / 2 >= y1) & 
+                             ((temp_df.iloc[:, 1] + temp_df.iloc[:, 3]) / 2 <= y2)))]
+        
         xyxy = trim_df.iloc[:, :-1].values
         confidence = trim_df.iloc[:, -1].values
         return (xyxy, confidence)
 
-    def get_count(self, window_listup):
+    def get_bt_count(self, window_listup):
         tracker = sv.ByteTrack(minimum_matching_threshold=.8, track_activation_threshold=.5, lost_track_buffer=24)
         id = []
         count = []
         track_ids = []
-        for i in range(29):
+        for i in range(60):
             results = window_listup[i]
             boxes, confidences = results
             detections = sv.Detections(
@@ -188,13 +177,31 @@ class ByteTrack_CropCounter:
         count = len(set(id))
         return count
 
+    def count_crops_rows(self, y1_bounds, y2_bounds, row_number, model_resultz, type):    
+        # -- 'type' - it is the video number that we are working on.
+        # -- row_numbe ris list of numbers of rows from 0-7 
+        results = {}
+        for i in range(len(row_number)):
+            count_in_row = []
+            for ymin, ymax in zip(y1_bounds, y2_bounds):
+                results_window = []
+                for j in range(60):
+                    df = self.ret_frame_dets(model_resultz, j, row_number[i], type)
+                    frame_detections = self.ret_trimmed_df(df, ymin, ymax)
+                    results_window.append(frame_detections)
+                crops_count = self.get_bt_count(results_window)
+                count_in_row.append(crops_count)
+            print(f'row{i+1}: {count_in_row}')
+            results[f'row{i+1}'] = count_in_row
+        return results
+
     def count_crops_rows_1to6(self, y1_bounds, y2_bounds, xmin_list, xmax_list, model):
         results = {}
         for i in range(len(xmin_list)):
             count_in_row = []
             for ymin, ymax in zip(y1_bounds, y2_bounds):
                 results_window = []
-                for j in range(29):
+                for j in range(60):
                     df = self.ret_frame_dets(model, j)
                     frame_detections = self.ret_trimmed_df(df, xmin_list[i], xmax_list[i], ymin, ymax)
                     results_window.append(frame_detections)
@@ -209,7 +216,7 @@ class ByteTrack_CropCounter:
         if limit > 20:
             for ymin, ymax in zip(y1_bounds[:limit], y2_bounds[:limit]):
                 results_window = []
-                for j in range(29):
+                for j in range(60):
                     df = self.ret_frame_dets(model, j)
                     frame_detections = self.ret_trimmed_df(df, xmin, xmax, ymin, ymax)
                     results_window.append(frame_detections)
@@ -217,7 +224,7 @@ class ByteTrack_CropCounter:
                 count_in_row.append(crops_count1)
             for ymin, ymax in zip(y1_bounds[limit:], y2_bounds[limit:]):
                 results_window = []
-                for j in range(29):
+                for j in range(60):
                     df = self.ret_frame_dets(model, j)
                     df = df[((df.iloc[:, 2] >= 3050) & (df.iloc[:, 2] <= 3400) & (df.iloc[:, 3] <= 2160) & (df.iloc[:, 3] > 1500)) |
                             ((df.iloc[:, 2] >= 3050) & (df.iloc[:, 2] <= 3500) & (df.iloc[:, 3] <= 1500) & (df.iloc[:, 3] >= 660))]
@@ -228,7 +235,7 @@ class ByteTrack_CropCounter:
         else:
             for ymin, ymax in zip(y1_bounds[:limit], y2_bounds[:limit]):
                 results_window = []
-                for j in range(29):
+                for j in range(60):
                     df = self.ret_frame_dets(model, j)
                     frame_detections = self.ret_trimmed_df(df, xmin, xmax, ymin, ymax)
                     results_window.append(frame_detections)
@@ -236,7 +243,7 @@ class ByteTrack_CropCounter:
                 count_in_row.append(crops_count1)
             for ymin, ymax in zip(y1_bounds[limit:], y2_bounds[limit:]):
                 results_window = []
-                for j in range(29):
+                for j in range(60):
                     df = self.ret_frame_dets(model, j)
                     df = df[((df.iloc[:, 2] >= 3420) & (df.iloc[:, 3] > 1500)) |
                             ((df.iloc[:, 2] >= 3493) & (df.iloc[:, 3] <= 1500) & (df.iloc[:, 3] >= 660))]
@@ -254,6 +261,7 @@ class ByteTrack_CropCounter:
         row16['row8'] = row8
         return row16
 
+    
     def plot_accuracy(accuracy_results_list, model_names, vertical_fov, horz_va1, horz_va2):
         
         threshold = 95  # Set the threshold for accuracy
@@ -295,6 +303,73 @@ class ByteTrack_CropCounter:
         plt.tight_layout()
         plt.subplots_adjust(top=0.85)  # Adjust the top to make room for the legend
         plt.show()
+        
+    def video1_division(self, df_video1):
+
+        row1 = df_video1[((df_video1['CenterX'] < 850) & (df_video1['CenterY'] > 1750)) | (((df_video1['CenterX'] < 750) & (df_video1['CenterY'] < 1750)))] 
+        row2 = df_video1[(df_video1['CenterX'] > 750) & (df_video1['CenterX'] <1150) & (df_video1['CenterY'] < 1750) | ((df_video1['CenterX'] > 800) & (df_video1['CenterX'] < 1150) & (df_video1['CenterY'] > 1750))] 
+        row3 = df_video1[(df_video1['CenterX'] > 1200) & (df_video1['CenterX'] < 1600)] 
+        row4 = df_video1[(df_video1['CenterX'] > 1700) & (df_video1['CenterX'] < 2100)] 
+        row5 = df_video1[(df_video1['CenterX'] > 2100) & (df_video1['CenterX'] < 2600)] 
+        row6 = df_video1[((df_video1['CenterX'] > 2600) & (df_video1['CenterX'] < 3050) & (df_video1['CenterY'] > 1750)) | ((df_video1['CenterX'] > 2600) & (df_video1['CenterX'] < 3150) & (df_video1['CenterY'] < 1750))] 
+
+        row7_row8 = df_video1[((df_video1['CenterX'] > 3050) & (df_video1['CenterY'] > 1750)) | ((df_video1['CenterX'] > 3150) & (df_video1['CenterY'] <= 1750))]
+
+        row8 = df_video1[((df_video1['CenterX'] > 3350) & (df_video1['CenterY'] >= 1880)) |
+                    ((df_video1['CenterX'] > 3450) & (df_video1['CenterY'] <= 1880) & (df_video1['CenterY'] >= 1550)) |
+                    ((df_video1['CenterX'] > 3500) & (df_video1['CenterY'] <= 1550) & (df_video1['CenterY'] >= 1100)) |
+                    ((df_video1['CenterX'] > 3550) & (df_video1['CenterY'] <= 1100))]
+
+        concat_df = pd.concat([row7_row8, row8])
+        row7 = concat_df.drop_duplicates(keep=False)    # Dropping duplicates (dropping 8th row from rows 7 & 8 - to get row7)
+        
+        rows_df_list = [row1, row2, row3, row4, row5, row6, row7, row8]
+        return rows_df_list
+
+    # video2
+    def video2_division(df_video2):
+        row1 = df_video2[((df_video2['CenterX'] < 850) & (df_video2['CenterY'] > 1600)) | (((df_video2['CenterX'] < 750) & (df_video2['CenterY'] < 1600)))]
+        row2 = df_video2[((df_video2['CenterX'] > 850) & (df_video2['CenterX'] < 1150) & (df_video2['CenterY'] > 1750)) | (((df_video2['CenterX'] < 1080) & (df_video2['CenterX'] > 750) & (df_video2['CenterY'] < 1750)))] 
+        row3 = df_video2[((df_video2['CenterX'] > 1110) & (df_video2['CenterX'] < 1600) & (df_video2['CenterY'] >= 1750)) | ((df_video2['CenterX'] > 1080) & (df_video2['CenterX'] < 1600) & (df_video2['CenterY'] < 1750))] 
+        row4 = df_video2[(df_video2['CenterX'] > 1700)  & (df_video2['CenterX'] < 2100)]
+        row5 = df_video2[(df_video2['CenterX'] > 2200)  & (df_video2['CenterX'] < 2600)]
+        row6 = df_video2[(df_video2['CenterX'] > 2600)  & (df_video2['CenterX'] < 3100)]
+        row7 = df_video2[((df_video2['CenterX'] > 3100) & (df_video2['CenterX'] < 3330) & (df_video2['CenterY'] > 1750)) | (((df_video2['CenterX'] < 3430) & (df_video2['CenterX'] > 3100) & (df_video2['CenterY'] < 1750)))] 
+        row8 = df_video2[((df_video2['CenterX'] >= 3330) & (df_video2['CenterY'] > 1750)) | (((df_video2['CenterX'] > 3430) & (df_video2['CenterY'] < 1750)))]
+
+        rows_df_list = [row1, row2, row3, row4, row5, row6, row7, row8]
+        return rows_df_list
+
+    # video 3 
+
+    def video3_division(df_video3):
+        
+        row1 = df_video3[((df_video3['CenterX'] < 800) & (df_video3['CenterY'] > 1750)) | (((df_video3['CenterX'] < 700) & (df_video3['CenterY'] < 1750)))]
+        row2 = df_video3[((df_video3['CenterX'] < 1150) & (df_video3['CenterY'] > 1750) & (df_video3['CenterX'] > 800)) | (((df_video3['CenterX'] < 1150) & (df_video3['CenterX'] > 700) & (df_video3['CenterY'] < 1750)))]
+        row3 = df_video3[(df_video3['CenterX'] > 1200)  & (df_video3['CenterX'] < 1600)]
+        row4 = df_video3[(df_video3['CenterX'] > 1700)  & (df_video3['CenterX'] < 2100)]
+        row5 = df_video3[(df_video3['CenterX'] > 2100)  & (df_video3['CenterX'] < 2600)]
+        row6 = df_video3[(df_video3['CenterX'] > 2600)  & (df_video3['CenterX'] < 3050)]
+        row7 = df_video3[((df_video3['CenterX'] < 3350) & (df_video3['CenterY'] > 1750) & (df_video3['CenterX'] > 3050)) | (((df_video3['CenterX'] < 3450) & (df_video3['CenterX'] > 3100) & (df_video3['CenterY'] <= 1750)))]
+        row8 = df_video3[((df_video3['CenterX'] > 3350) & (df_video3['CenterY'] > 1750)) | (((df_video3['CenterX'] > 3450) & (df_video3['CenterY'] < 1750)))]
+        
+        rows_df_list = [row1, row2, row3, row4, row5, row6, row7, row8]
+        return rows_df_list
+
+    # video 4
+    def video4_division(df_video4):
+        
+        row1 = df_video4[((df_video4['CenterX'] < 750) & (df_video4['CenterY'] >= 1750)) | (((df_video4['CenterX'] < 650) & (df_video4['CenterY'] < 1750)))]
+        row2 = df_video4[((df_video4['CenterX'] > 750) & (df_video4['CenterY'] >= 1750) & (df_video4['CenterX'] < 1100)) | ((df_video4['CenterX'] > 650) & (df_video4['CenterY'] < 1750) & (df_video4['CenterX'] < 1100))]
+        row3 = df_video4[(df_video4['CenterX'] > 1150)  & (df_video4['CenterX'] < 1600)]
+        row4 = df_video4[(df_video4['CenterX'] > 1700)  & (df_video4['CenterX'] < 2000)]
+        row5 = df_video4[(df_video4['CenterX'] > 2200)  & (df_video4['CenterX'] < 2500)]
+        row6 = df_video4[(df_video4['CenterX'] > 2600)  & (df_video4['CenterX'] < 3000)]
+        row7 = df_video4[((df_video4['CenterX'] > 3000) & (df_video4['CenterX'] < 3350) & (df_video4['CenterY'] >=1750)) | ((df_video4['CenterX'] > 3000) & (df_video4['CenterX'] < 3450) & (df_video4['CenterY'] < 1750))]
+        row8 = df_video4[((df_video4['CenterX'] > 3350) & (df_video4['CenterY'] >=1750)) | ((df_video4['CenterX'] > 3450) & (df_video4['CenterY'] < 1750))]
+        
+        rows_df_list = [row1, row2, row3, row4, row5, row6, row7, row8]
+        return rows_df_list
 
 # -- customized sort tracker
 
@@ -337,14 +412,13 @@ class SORT_CropCounter:
         df2 = pd.DataFrame(conf)
         df_appended = pd.concat([df1, df2], axis=1)
         df = df_appended[(df_appended.iloc[:, 1] >= 660) & (df_appended.iloc[:, 4] >= .5)]
-        
         trim_df = df[((df.iloc[:, 2] >= 3050) & (df.iloc[:, 2] <= 3300) & (df.iloc[:, 3] <= 2160) & (df.iloc[:, 3] > 1500)) | 
                      ((df.iloc[:, 2] >= 3050) & (df.iloc[:, 2] <= 3500) & (df.iloc[:, 3] <= 1500) & (df.iloc[:, 3] >= 660))]
         xyxyc = trim_df.values
         return xyxyc
 
     def process_sort(self, det_results, xmin, xmax, y1_lim, y2_lim):
-        tracker = Sort(max_age=25, min_hits=6, iou_threshold=.1)  # -- min_hits=5 found through tuning
+        tracker = Sort(max_age=25, min_hits=5, iou_threshold=.01)  # -- min_hits=5 found through tuning
         ids = []
         for i in range(29):   # -- len(det_results) - paste this in place of 29 for bigger videos
             detections = np.empty((0, 5))
@@ -409,16 +483,16 @@ class SORT_CropCounter:
                 crops_count2 = self.process_sort(model, xmin_list, xmax_list, ymin, ymax)
                 count_in_row.append(crops_count2)
             return count_in_row
-
+    
     def count_crops_for_model(self, model_name, results, xmin_limits, xmax_limits, y1, y2):
-        row16 = self.count_crops_rows_1to6(y1, y2, xmin_limits[:6], xmax_limits[:6], results)
+        count_results = self.count_crops_rows_1to6(y1, y2, xmin_limits[:6], xmax_limits[:6], results)
         row7 = self.count_crops_rows_78(y1, y2, xmin_limits[6], xmax_limits[6], 25 if model_name == "1" else 21, results)
         row8 = self.count_crops_rows_78(y1, y2, xmin_limits[7], xmax_limits[7], 15, results)
-        row16['row7'] = row7
-        row16['row8'] = row8
-        return row16
-    
-    
+        count_results['row7'] = row7
+        count_results['row8'] = row8
+        return count_results
+
+
 class DeepSORTCounter:
     
     def __init__(self):
@@ -536,10 +610,84 @@ class DeepSORTCounter:
             return count_in_row
     
     def count_crops_for_model(self, results, xmin_limits, xmax_limits, y1, y2, source):
-        generated_results = self.count_crops_rows_1to6(y1, y2, xmin_limits[:6], xmax_limits[:6], results, source)
+        row16 = self.count_crops_rows_1to6(y1, y2, xmin_limits[:6], xmax_limits[:6], results, source)
         row7 = self.count_crops_rows_78(y1, y2, xmin_limits[6], xmax_limits[6], 25, results, source)
         row8 = self.count_crops_rows_78(y1, y2, xmin_limits[7], xmax_limits[7], 15, results, source)
-        generated_results['row7'] = row7
-        generated_results['row8'] = row8
-        return generated_results
-    
+        row16['row7'] = row7
+        row16['row8'] = row8
+        return row16
+
+
+def estimate_motion(prev_frame, curr_frame):
+    orb = cv2.ORB_create(nfeatures=500)
+    kp1, des1 = orb.detectAndCompute(prev_frame, None)
+    kp2, des2 = orb.detectAndCompute(curr_frame, None)
+
+    # Match descriptors using BFMatcher with Hamming distance
+    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+    matches = bf.match(des1, des2)
+
+    # Sort matches based on distance
+    matches = sorted(matches, key=lambda x: x.distance)
+
+    # Extract the matched keypoints
+    src_pts = np.float32([kp1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
+    dst_pts = np.float32([kp2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
+
+    # Estimate homography using RANSAC to handle outliers
+    H, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+    return H
+
+# class MotionCompensatedSort(Sort):
+#     def __init__(self, max_age=1, min_hits=3, iou_threshold=0.3):
+#         super().__init__(max_age, min_hits, iou_threshold)
+#         self.prev_frame = None
+
+#     def update(self, frame, detections=np.empty((0, 5))):
+#         if self.prev_frame is not None:
+#             H = estimate_motion(self.prev_frame, frame)
+#             if H is not None:
+#                 # Apply the homography matrix to adjust the predicted positions of trackers
+#                 for trk in self.trackers:
+#                     state = trk.predict()
+#                     pts = np.array([[state[0], state[1]], [state[2], state[3]]], dtype=np.float32).reshape(-1, 1, 2)
+#                     adjusted_pts = cv2.perspectiveTransform(pts, H).reshape(2, 2)
+#                     state[0], state[1] = adjusted_pts[0]
+#                     state[2], state[3] = adjusted_pts[1]
+#                     trk.update(state)
+
+#         self.prev_frame = frame.copy()
+#         return super().update(detections)
+
+
+class MotionCompensatedSort(Sort):
+    def __init__(self, max_age=1, min_hits=3, iou_threshold=0.3):
+        super().__init__(max_age, min_hits, iou_threshold)
+        self.prev_frame = None
+
+    def update(self, frame, detections=np.empty((0, 5))):
+        if self.prev_frame is not None:
+            H = estimate_motion(self.prev_frame, frame)
+            if H is not None:
+                # Apply the homography matrix to adjust the predicted positions of trackers
+                for trk in self.trackers:
+                    state = trk.predict()
+                    # print(state)
+                    if len(state[0]) >= 4:  # Ensure state has the expected length
+                        pts = np.array([[state[0][0], state[0][1]], [state[0][2], state[0][3]]], dtype=np.float32).reshape(-1, 1, 2)
+                        adjusted_pts = cv2.perspectiveTransform(pts, H).reshape(2, 2)
+                        state[0], state[1] = adjusted_pts[0]
+                        state[2], state[3] = adjusted_pts[1]
+                        trk.update(state[0])
+                    else:
+                        print(f"Unexpected state shape: {state}")
+                        print(f"Unexpected state shape: {state[0]}")
+                        # print(f"Unexpected state shape: {state[1]}")
+                        # print(f"Unexpected state shape: {state[2]}")
+                        
+                        # print(f"Unexpected state shape: {adjusted_pts[0]}")
+                        # print(f"Unexpected state shape: {adjusted_pts[1]}")
+                        
+
+        self.prev_frame = frame.copy()
+        return super().update(detections)
